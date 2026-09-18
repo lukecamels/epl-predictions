@@ -7,53 +7,65 @@
 <style>
   :root {
     --bg: #f4f5f7; --panel: #ffffff; --text: #1b1f24; --muted: #6b7480;
-    --line: #e3e6ea; --accent: #37003c; --hl: #fff4c2; --row: 38px;
+    --line: #e3e6ea; --hl: #fff4c2; --gold: #d4a017;
+    /* Everything is sized off the row height, which is chosen so that the header,
+       20 rows, totals and the status line exactly fill the screen height.
+       Width is not squeezed: the predictions scroll sideways next to the pinned table. */
+    --rh: clamp(19px, calc((100vh - 38px) / 22.8), 40px);
+    --rh: clamp(19px, calc((100dvh - 38px) / 22.8), 40px);
   }
   @media (prefers-color-scheme: dark) {
     :root { --bg: #14161a; --panel: #1e2127; --text: #e8eaed; --muted: #9aa3ae;
-            --line: #2d3138; --accent: #c9a6ff; --hl: #4a4220; }
+            --line: #2d3138; --hl: #4a4220; }
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--text);
-         font: 14px/1.3 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  #status { color: var(--muted); font-size: 12.5px; padding: 0 16px 20px; }
+  body { margin: 0; background: var(--bg); color: var(--text); -webkit-text-size-adjust: 100%;
+         font: calc(var(--rh) * .37)/1.2 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  #status { color: var(--muted); font-size: 11px; line-height: 16px; height: 22px; padding: 0 8px; text-align: center;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 1260px; margin: 0 auto; }
   #status.error { color: #c62828; }
 
-  #board { display: flex; gap: 8px; align-items: flex-start; overflow-x: auto; padding: 16px 16px 12px; }
-  .col { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; flex: 0 0 auto; }
-  .col .head { height: 52px; display: flex; flex-direction: column; align-items: center; justify-content: center;
-               border-bottom: 1px solid var(--line); font-weight: 700; padding: 0 8px; }
-  .col .head small { font-weight: 500; color: var(--muted); font-size: 11.5px; }
-  .col .foot { height: 44px; display: flex; align-items: center; justify-content: center;
-               border-top: 2px solid var(--line); font-weight: 800; font-size: 18px; }
-  .row { height: var(--row); display: flex; align-items: center; gap: 6px; padding: 0 8px; }
+  #board { display: flex; gap: 8px; padding: 8px 8px 6px; max-width: 1260px; margin: 0 auto; overflow-x: auto; }
+  .col { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .col .head { height: calc(var(--rh) * 1.5); display: flex; flex-direction: column; align-items: center; justify-content: center;
+               border-bottom: 1px solid var(--line); font-weight: 700; padding: 0 4px; text-align: center; line-height: 1.05; }
+  .col .head small { font-weight: 500; color: var(--muted); font-size: .8em; }
+  .col .foot { height: calc(var(--rh) * 1.3 - 2px); display: flex; align-items: center; justify-content: center;
+               border-top: 2px solid var(--line); font-weight: 800; font-size: 1.3em; }
+  .row { height: var(--rh); display: flex; align-items: center; gap: 6px; padding: 0 8px; }
   .row + .row { border-top: 1px solid var(--line); }
   .row.hl { background: var(--hl); }
-  img.logo { width: 26px; height: 26px; object-fit: contain; flex: 0 0 auto; }
+  img.logo { width: calc(var(--rh) * .7); height: calc(var(--rh) * .7); object-fit: contain; flex: 0 0 auto; }
 
   /* live table */
-  #table { position: sticky; left: 0; z-index: 2; box-shadow: 4px 0 8px -4px rgba(0,0,0,.25); }
-  #table .pos { width: 20px; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
-  #table .name { width: 96px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
-  #table .num { width: 28px; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+  #table { flex: 0 0 auto; position: sticky; left: 0; z-index: 2; box-shadow: 4px 0 8px -4px rgba(0,0,0,.25); }
+  #table .pos { width: 1.5em; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+  #table .name { width: 7em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+  #table .num { width: 2em; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
   #table .pts { color: var(--text); font-weight: 700; }
-  #table .head { flex-direction: row; justify-content: flex-start; gap: 6px; }
+  #table .head { flex-direction: row; justify-content: flex-start; gap: 6px; padding: 0 8px; }
   #table .head .title { flex: 1; text-align: left; }
-  #table .head .num { font-size: 11.5px; font-weight: 600; }
-  #table .foot { font-size: 12px; font-weight: 600; color: var(--muted); }
+  #table .head .num { font-size: .85em; font-weight: 600; }
+  #table .foot { font-size: .85em; font-weight: 600; color: var(--muted); }
 
   /* player columns */
-  .player { width: 92px; }
-  .player .row { justify-content: center; gap: 8px; cursor: default; }
-  .player.leader { border-color: #d4a017; box-shadow: 0 0 0 1px #d4a017; }
-  .oval { min-width: 34px; height: 22px; border-radius: 11px; padding: 0 8px; color: #fff; font-weight: 700;
-          font-size: 13px; display: inline-flex; align-items: center; justify-content: center;
+  .player { flex: 1 0 80px; }
+  .player .row { justify-content: center; cursor: default; }
+  .player.leader { border-color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold); }
+  .cell { display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .oval { min-width: 2.6em; height: calc(var(--rh) * .58); border-radius: 99px; padding: 0 .5em; background: var(--c);
+          color: #fff; font-weight: 700; display: inline-flex; align-items: center; justify-content: center;
           font-variant-numeric: tabular-nums; text-shadow: 0 1px 1px rgba(0,0,0,.35); }
 
-  @media (max-width: 600px) {
-    #table .name { width: 36px; }
-    #table .gd, #table .p { display: none; }
-    .player { width: 80px; }
+  /* Phones: slim the live table down to position, crest and points (tap a team for the rest) */
+  @media (max-width: 700px) {
+    #board { gap: 5px; padding: 6px 6px 4px; }
+    #table .title, #table .p, #table .gd, #table .name { display: none; }
+    #table .head { justify-content: flex-end; }
+    #table .row, #table .head { padding: 0 6px; gap: 4px; }
+    #table .foot { font-size: .75em; }
+    .player { flex-basis: 66px; }
+    .player .cell { gap: 5px; }
   }
 </style>
 </head>
@@ -65,7 +77,6 @@
 <script>
 const API = "https://site.api.espn.com/apis/v2/sports/soccer/eng.1/standings";
 const CACHE_KEY = "epl-table-cache";
-const ABBR_NAMES = window.matchMedia("(max-width: 600px)");
 
 const ordinal = n => n + (n >= 11 && n <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] || "th");
 
@@ -120,27 +131,35 @@ function render(table) {
   const tcol = el("section", "col"); tcol.id = "table";
   tcol.append(el("div", "head", `<span class="title">Current table</span><span class="num p">P</span><span class="num gd">GD</span><span class="num">Pts</span>`));
   for (const t of table) {
-    const r = el("div", "row", `<span class="pos">${t.pos}</span>${logo(t)}<span class="name" title="${t.fullName}">${ABBR_NAMES.matches ? t.abbr : t.name}</span>
+    const r = el("div", "row", `<span class="pos">${t.pos}</span>${logo(t)}<span class="name" title="${t.fullName}">${t.name}</span>
       <span class="num p">${t.played}</span><span class="num gd">${t.gd > 0 ? "+" : ""}${t.gd}</span><span class="num pts">${t.points}</span>`);
     r.dataset.team = t.id;
+    r.dataset.info = `${ordinal(t.pos)} ${t.fullName} – played ${t.played}, GD ${t.gd > 0 ? "+" : ""}${t.gd}, ${t.points} pts`;
     tcol.append(r);
   }
-  tcol.append(el("div", "foot", "Total score"));
+  tcol.append(el("div", "foot", "Total"));
   board.append(tcol);
 
   for (const p of players) {
     const col = el("section", "col player" + (p.place === 1 ? " leader" : ""));
-    col.append(el("div", "head", `<span>${p.place === 1 ? "🏆 " : ""}${p.name}</span><small>${ordinal(p.place)}</small>`));
+    col.append(el("div", "head", `<span>${p.place === 1 ? '<span class="trophy">🏆 </span>' : ""}${p.name}</span><small>${ordinal(p.place)}</small>`));
     for (const r of p.rows) {
-      const row = el("div", "row", `${logo(r.team)}<span class="oval" style="background:${scoreColour(r.diff)}">${r.diff}</span>`);
+      const row = el("div", "row", `<span class="cell" style="--c:${scoreColour(r.diff)}">${logo(r.team)}<span class="oval">${r.diff}</span></span>`);
       row.dataset.team = r.team.id;
-      row.title = `${r.team.fullName}: predicted ${ordinal(r.predicted)}, currently ${ordinal(r.team.pos)}`;
+      row.dataset.info = row.title = `${p.name} – ${r.team.fullName}: predicted ${ordinal(r.predicted)}, currently ${ordinal(r.team.pos)}`;
       col.append(row);
     }
     col.append(el("div", "foot", p.total));
     board.append(col);
   }
 }
+
+// Tap a prediction to see its details in the status line (phones have no tooltips)
+let baseStatus = "";
+document.addEventListener("click", e => {
+  const row = e.target.closest(".row[data-info]");
+  document.getElementById("status").textContent = row ? row.dataset.info : baseStatus;
+});
 
 // Hover (or tap) a team to highlight it everywhere
 document.getElementById("board").addEventListener("pointerover", e => {
@@ -156,7 +175,7 @@ async function load() {
     render(table);
     const now = new Date();
     status.className = "";
-    status.textContent = `Live table fetched ${now.toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}.`;
+    status.textContent = baseStatus = `Live table fetched ${now.toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}.`;
     try { localStorage.setItem(CACHE_KEY, JSON.stringify({ at: now.toISOString(), table })); } catch {}
   } catch (err) {
     console.error(err);
@@ -173,7 +192,6 @@ async function load() {
 }
 
 load();
-ABBR_NAMES.addEventListener("change", load);
 // Refresh when someone comes back to a tab that's been left open
 document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
 </script>
