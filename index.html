@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EPL Ladder Predictions</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --panel: #ffffff; --text: #1b1f24; --muted: #6b7480;
+    --line: #e3e6ea; --accent: #37003c; --hl: #fff4c2; --row: 38px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #14161a; --panel: #1e2127; --text: #e8eaed; --muted: #9aa3ae;
+            --line: #2d3138; --accent: #c9a6ff; --hl: #4a4220; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 14px/1.3 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { padding: 16px 16px 8px; }
+  h1 { margin: 0; font-size: 22px; color: var(--accent); }
+  #status { color: var(--muted); font-size: 12.5px; margin-top: 4px; }
+  #status.error { color: #c62828; }
+
+  #board { display: flex; gap: 8px; align-items: flex-start; overflow-x: auto; padding: 8px 16px 24px; }
+  .col { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; flex: 0 0 auto; }
+  .col .head { height: 52px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+               border-bottom: 1px solid var(--line); font-weight: 700; padding: 0 8px; }
+  .col .head small { font-weight: 500; color: var(--muted); font-size: 11.5px; }
+  .col .foot { height: 44px; display: flex; align-items: center; justify-content: center;
+               border-top: 2px solid var(--line); font-weight: 800; font-size: 18px; }
+  .row { height: var(--row); display: flex; align-items: center; gap: 6px; padding: 0 8px; }
+  .row + .row { border-top: 1px solid var(--line); }
+  .row.hl { background: var(--hl); }
+  img.logo { width: 26px; height: 26px; object-fit: contain; flex: 0 0 auto; }
+
+  /* live table */
+  #table { position: sticky; left: 0; z-index: 2; box-shadow: 4px 0 8px -4px rgba(0,0,0,.25); }
+  #table .pos { width: 20px; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+  #table .name { width: 96px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+  #table .num { width: 28px; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+  #table .pts { color: var(--text); font-weight: 700; }
+  #table .head { flex-direction: row; justify-content: flex-start; gap: 6px; }
+  #table .head .title { flex: 1; text-align: left; }
+  #table .head .num { font-size: 11.5px; font-weight: 600; }
+  #table .foot { font-size: 12px; font-weight: 600; color: var(--muted); }
+
+  /* player columns */
+  .player { width: 92px; }
+  .player .row { justify-content: center; gap: 8px; cursor: default; }
+  .player.leader { border-color: #d4a017; box-shadow: 0 0 0 1px #d4a017; }
+  .oval { min-width: 34px; height: 22px; border-radius: 11px; padding: 0 8px; color: #fff; font-weight: 700;
+          font-size: 13px; display: inline-flex; align-items: center; justify-content: center;
+          font-variant-numeric: tabular-nums; text-shadow: 0 1px 1px rgba(0,0,0,.35); }
+
+  @media (max-width: 600px) {
+    #table .name { width: 36px; }
+    #table .gd, #table .p { display: none; }
+    .player { width: 80px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>EPL Ladder Predictions <span id="season"></span></h1>
+  <div id="status">Loading the current Premier League table…</div>
+</header>
+<main id="board"></main>
+
+<script src="predictions.js"></script>
+<script>
+const API = "https://site.api.espn.com/apis/v2/sports/soccer/eng.1/standings";
+const CACHE_KEY = "epl-table-cache";
+const ABBR_NAMES = window.matchMedia("(max-width: 600px)");
+
+document.getElementById("season").textContent = SEASON;
+
+const ordinal = n => n + (n >= 11 && n <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] || "th");
+
+// 0 → green, fading to red at 10+ places out
+function scoreColour(diff) {
+  const hue = 125 * (1 - Math.min(diff, 10) / 10);
+  return `hsl(${hue}, 68%, 40%)`;
+}
+
+async function fetchTable() {
+  const res = await fetch(API, { cache: "no-store" });
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  const data = await res.json();
+  const entries = data.children[0].standings.entries;
+  const stat = (e, name) => (e.stats.find(s => s.name === name) || {}).value ?? 0;
+  const table = entries.map(e => ({
+    id: Number(e.team.id),
+    name: e.team.shortDisplayName,
+    abbr: e.team.abbreviation,
+    fullName: e.team.displayName,
+    logo: e.team.logos[0].href.replace("http://", "https://"),
+    rank: stat(e, "rank"),
+    played: stat(e, "gamesPlayed"),
+    gd: stat(e, "pointDifferential"),
+    points: stat(e, "points"),
+  }));
+  // Before a ball is kicked ESPN reports rank 0 for everyone; fall back to list order.
+  table.sort((a, b) => (a.rank || 99) - (b.rank || 99));
+  table.forEach((t, i) => t.pos = i + 1);
+  return table;
+}
+
+function render(table) {
+  const byId = new Map(table.map(t => [t.id, t]));
+
+  const players = Object.entries(PREDICTIONS).map(([name, picks]) => {
+    const rows = picks.map((teamName, i) => {
+      const team = byId.get(TEAM_IDS[teamName]);
+      if (!team) throw new Error(`"${teamName}" (${name}) isn't in the live table`);
+      return { team, predicted: i + 1, diff: Math.abs(i + 1 - team.pos) };
+    });
+    return { name, rows, total: rows.reduce((s, r) => s + r.diff, 0) };
+  });
+  players.sort((a, b) => a.total - b.total || a.name.localeCompare(b.name));
+  players.forEach((p, i) => p.place = i && players[i - 1].total === p.total ? players[i - 1].place : i + 1);
+
+  const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; };
+  const logo = t => `<img class="logo" src="${t.logo}" alt="${t.fullName}" loading="lazy">`;
+  const board = document.getElementById("board");
+  board.innerHTML = "";
+
+  const tcol = el("section", "col"); tcol.id = "table";
+  tcol.append(el("div", "head", `<span class="title">Current table</span><span class="num p">P</span><span class="num gd">GD</span><span class="num">Pts</span>`));
+  for (const t of table) {
+    const r = el("div", "row", `<span class="pos">${t.pos}</span>${logo(t)}<span class="name" title="${t.fullName}">${ABBR_NAMES.matches ? t.abbr : t.name}</span>
+      <span class="num p">${t.played}</span><span class="num gd">${t.gd > 0 ? "+" : ""}${t.gd}</span><span class="num pts">${t.points}</span>`);
+    r.dataset.team = t.id;
+    tcol.append(r);
+  }
+  tcol.append(el("div", "foot", "Total score"));
+  board.append(tcol);
+
+  for (const p of players) {
+    const col = el("section", "col player" + (p.place === 1 ? " leader" : ""));
+    col.append(el("div", "head", `<span>${p.place === 1 ? "🏆 " : ""}${p.name}</span><small>${ordinal(p.place)}</small>`));
+    for (const r of p.rows) {
+      const row = el("div", "row", `${logo(r.team)}<span class="oval" style="background:${scoreColour(r.diff)}">${r.diff}</span>`);
+      row.dataset.team = r.team.id;
+      row.title = `${r.team.fullName}: predicted ${ordinal(r.predicted)}, currently ${ordinal(r.team.pos)}`;
+      col.append(row);
+    }
+    col.append(el("div", "foot", p.total));
+    board.append(col);
+  }
+}
+
+// Hover (or tap) a team to highlight it everywhere
+document.getElementById("board").addEventListener("pointerover", e => {
+  const row = e.target.closest(".row");
+  document.querySelectorAll(".row.hl").forEach(r => r.classList.remove("hl"));
+  if (row) document.querySelectorAll(`.row[data-team="${row.dataset.team}"]`).forEach(r => r.classList.add("hl"));
+});
+
+async function load() {
+  const status = document.getElementById("status");
+  try {
+    const table = await fetchTable();
+    render(table);
+    const now = new Date();
+    status.className = "";
+    status.textContent = `Live table fetched ${now.toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}. Score = places between prediction and current position; lowest total wins.`;
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify({ at: now.toISOString(), table })); } catch {}
+  } catch (err) {
+    console.error(err);
+    status.className = "error";
+    let cached = null;
+    try { cached = JSON.parse(localStorage.getItem(CACHE_KEY)); } catch {}
+    if (cached) {
+      render(cached.table);
+      status.textContent = `Couldn't fetch the live table (${err.message}). Showing the table as of ${new Date(cached.at).toLocaleString()}.`;
+    } else {
+      status.textContent = `Couldn't fetch the live table (${err.message}). Try refreshing.`;
+    }
+  }
+}
+
+load();
+ABBR_NAMES.addEventListener("change", load);
+// Refresh when someone comes back to a tab that's been left open
+document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
+</script>
+</body>
+</html>
