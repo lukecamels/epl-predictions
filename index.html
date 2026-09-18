@@ -7,7 +7,7 @@
 <style>
   :root {
     --bg: #f4f5f7; --panel: #ffffff; --text: #1b1f24; --muted: #6b7480;
-    --line: #e3e6ea; --hl: #fff4c2; --gold: #d4a017;
+    --line: #e3e6ea; --hl: #fff4c2; --gold: #d4a017; --pin: #2f6fde;
     /* Everything is sized off the row height, which is chosen so that the header,
        20 rows, totals and the status line exactly fill the screen height.
        Width is not squeezed: the predictions scroll sideways next to the pinned table. */
@@ -51,7 +51,10 @@
   /* player columns */
   .player { flex: 1 0 80px; }
   .player .row { justify-content: center; cursor: default; }
+  .player .head { cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent; }
   .player.leader { border-color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold); }
+  .player.pinned { border-color: var(--pin); box-shadow: inset 0 0 0 1px var(--pin); }
+  .player.pinned .head { background: color-mix(in srgb, var(--pin) 16%, var(--panel)); }
   .cell { display: flex; align-items: center; justify-content: center; gap: 8px; }
   .oval { min-width: 2.6em; height: calc(var(--rh) * .58); border-radius: 99px; padding: 0 .5em; background: var(--c);
           color: #fff; font-weight: 700; display: inline-flex; align-items: center; justify-content: center;
@@ -77,6 +80,10 @@
 <script>
 const API = "https://site.api.espn.com/apis/v2/sports/soccer/eng.1/standings";
 const CACHE_KEY = "epl-table-cache";
+const PIN_KEY = "epl-pinned-player";
+let lastTable = null;
+let pinned = null;
+try { pinned = localStorage.getItem(PIN_KEY); } catch {}
 
 const ordinal = n => n + (n >= 11 && n <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] || "th");
 
@@ -122,6 +129,10 @@ function render(table) {
   });
   players.sort((a, b) => a.total - b.total || a.name.localeCompare(b.name));
   players.forEach((p, i) => p.place = i && players[i - 1].total === p.total ? players[i - 1].place : i + 1);
+  // A pinned player ("me") jumps to the front; everyone else stays in ranking order
+  const me = players.findIndex(p => p.name === pinned);
+  if (me > 0) players.unshift(players.splice(me, 1)[0]);
+  lastTable = table;
 
   const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; };
   const logo = t => `<img class="logo" src="${t.logo}" alt="${t.fullName}" loading="lazy">`;
@@ -141,8 +152,9 @@ function render(table) {
   board.append(tcol);
 
   for (const p of players) {
-    const col = el("section", "col player" + (p.place === 1 ? " leader" : ""));
-    col.append(el("div", "head", `<span>${p.place === 1 ? '<span class="trophy">🏆 </span>' : ""}${p.name}</span><small>${ordinal(p.place)}</small>`));
+    const col = el("section", "col player" + (p.place === 1 ? " leader" : "") + (p.name === pinned ? " pinned" : ""));
+    col.dataset.player = p.name;
+    col.append(el("div", "head", `<span>${p.name === pinned ? "📌 " : p.place === 1 ? "🏆 " : ""}${p.name}</span><small>${ordinal(p.place)}</small>`));
     for (const r of p.rows) {
       const row = el("div", "row", `<span class="cell" style="--c:${scoreColour(r.diff)}">${logo(r.team)}<span class="oval">${r.diff}</span></span>`);
       row.dataset.team = r.team.id;
@@ -153,6 +165,17 @@ function render(table) {
     board.append(col);
   }
 }
+
+// Tap a player's name to pin them next to the table (tap again to unpin); remembered on this device
+document.getElementById("board").addEventListener("click", e => {
+  const head = e.target.closest(".player .head");
+  if (!head || !lastTable) return;
+  const name = head.parentElement.dataset.player;
+  pinned = pinned === name ? null : name;
+  try { pinned ? localStorage.setItem(PIN_KEY, pinned) : localStorage.removeItem(PIN_KEY); } catch {}
+  render(lastTable);
+  document.getElementById("board").scrollLeft = 0;
+});
 
 // Tap a prediction to see its details in the status line (phones have no tooltips)
 let baseStatus = "";
